@@ -903,7 +903,8 @@ async function callLLM(userMessages) {
     if (provider === 'anthropic') {
         return callAnthropic(apiKey, model, userMessages);
     } else {
-        const baseUrl = settings.apiUrl || getDefaultUrl(provider);
+        const useCustomUrl = provider === 'ollama' || provider === 'custom';
+        const baseUrl = (useCustomUrl && settings.apiUrl) ? settings.apiUrl : getDefaultUrl(provider);
         return callOpenAI(baseUrl, apiKey, model, userMessages);
     }
 }
