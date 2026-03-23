@@ -42,12 +42,15 @@
                     <select id="provider-select">
                         <option value="openai">OpenAI</option>
                         <option value="anthropic">Anthropic</option>
+                        <option value="ollama">Ollama (local)</option>
                         <option value="custom">Custom (OpenAI-compatible)</option>
                     </select>
 
-                    <label class="field-label">API Key</label>
-                    <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
-                    <span class="field-hint">Stored locally in your browser. Never sent anywhere except your chosen API.</span>
+                    <div id="api-key-group">
+                        <label class="field-label">API Key</label>
+                        <input type="password" id="api-key" placeholder="sk-..." autocomplete="off">
+                        <span class="field-hint">Stored locally in your browser. Never sent anywhere except your chosen API.</span>
+                    </div>
 
                     <label class="field-label" id="model-label">Model</label>
                     <input type="text" id="model-name" placeholder="gpt-4o-mini">
@@ -55,6 +58,10 @@
                     <div id="custom-url-group" style="display:none">
                         <label class="field-label">API Base URL</label>
                         <input type="text" id="api-url" placeholder="https://api.openai.com/v1">
+                    </div>
+
+                    <div id="ollama-hint" style="display:none">
+                        <span class="field-hint">Make sure Ollama is running with CORS enabled:<br><code>OLLAMA_ORIGINS="https://sagelang.github.io" ollama serve</code></span>
                     </div>
 
                     <button class="btn-primary" id="settings-save" style="margin-top:16px;width:100%">Save</button>

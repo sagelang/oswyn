@@ -890,7 +890,7 @@ async function callLLM(userMessages) {
     const apiKey = settings.apiKey;
     const model = settings.model || getDefaultModel(provider);
 
-    if (!apiKey) {
+    if (!apiKey && provider !== 'ollama' && provider !== 'custom') {
         throw new Error('No API key configured. Click the settings icon to add your key.');
     }
 
@@ -906,6 +906,7 @@ function getDefaultModel(provider) {
     switch (provider) {
         case 'anthropic': return 'claude-sonnet-4-6';
         case 'openai': return 'gpt-4o-mini';
+        case 'ollama': return 'llama3.2';
         default: return 'gpt-4o-mini';
     }
 }
@@ -913,6 +914,7 @@ function getDefaultModel(provider) {
 function getDefaultUrl(provider) {
     switch (provider) {
         case 'openai': return 'https://api.openai.com/v1';
+        case 'ollama': return 'http://localhost:11434/v1';
         default: return 'https://api.openai.com/v1';
     }
 }
@@ -923,12 +925,14 @@ async function callOpenAI(baseUrl, apiKey, model, userMessages) {
         ...userMessages.map(m => ({ role: m.role, content: m.content }))
     ];
 
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     const resp = await fetch(`${baseUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify({
             model,
             messages: apiMessages,
@@ -1061,7 +1065,7 @@ settingsBtn.addEventListener('click', () => {
     apiKeyInput.value = s.apiKey || '';
     modelInput.value = s.model || '';
     apiUrlInput.value = s.apiUrl || '';
-    customUrlGroup.style.display = providerSelect.value === 'custom' ? '' : 'none';
+    updateProviderUI();
     settingsModal.classList.add('open');
 });
 
@@ -1071,14 +1075,24 @@ settingsModal.addEventListener('click', (e) => {
     if (e.target === settingsModal) settingsModal.classList.remove('open');
 });
 
-providerSelect.addEventListener('change', () => {
-    customUrlGroup.style.display = providerSelect.value === 'custom' ? '' : 'none';
-    if (providerSelect.value === 'anthropic') {
+function updateProviderUI() {
+    const v = providerSelect.value;
+    const apiKeyGroup = document.getElementById('api-key-group');
+    const ollamaHint = document.getElementById('ollama-hint');
+    customUrlGroup.style.display = (v === 'custom' || v === 'ollama') ? '' : 'none';
+    apiKeyGroup.style.display = v === 'ollama' ? 'none' : '';
+    ollamaHint.style.display = v === 'ollama' ? '' : 'none';
+    if (v === 'anthropic') {
         modelInput.placeholder = 'claude-sonnet-4-6';
+    } else if (v === 'ollama') {
+        modelInput.placeholder = 'llama3.2';
+        apiUrlInput.value = apiUrlInput.value || 'http://localhost:11434/v1';
     } else {
         modelInput.placeholder = 'gpt-4o-mini';
     }
-});
+}
+
+providerSelect.addEventListener('change', updateProviderUI);
 
 settingsSave.addEventListener('click', () => {
     saveSettings({
@@ -1094,9 +1108,9 @@ settingsSave.addEventListener('click', () => {
 renderMessages();
 inputEl.focus();
 
-// Check if API key is configured
-const settings = loadSettings();
-if (!settings.apiKey) {
+// Check if API key is configured (skip for Ollama which doesn't need one)
+const initSettings = loadSettings();
+if (!initSettings.apiKey && initSettings.provider !== 'ollama') {
     // Auto-open settings on first visit
     setTimeout(() => settingsModal.classList.add('open'), 500);
 }
