@@ -887,8 +887,14 @@ function escHtml(s) {
 async function callLLM(userMessages) {
     const settings = loadSettings();
     const provider = settings.provider || 'openai';
-    const apiKey = settings.apiKey;
+    let apiKey = settings.apiKey || '';
     const model = settings.model || getDefaultModel(provider);
+
+    // Guard: if apiKey looks like a URL, treat it as the base URL instead
+    if (apiKey.startsWith('http://') || apiKey.startsWith('https://')) {
+        settings.apiUrl = apiKey;
+        apiKey = '';
+    }
 
     if (!apiKey && provider !== 'ollama' && provider !== 'custom') {
         throw new Error('No API key configured. Click the settings icon to add your key.');
@@ -1095,11 +1101,23 @@ function updateProviderUI() {
 providerSelect.addEventListener('change', updateProviderUI);
 
 settingsSave.addEventListener('click', () => {
+    const provider = providerSelect.value;
+    const apiKey = apiKeyInput.value.trim();
+    const apiUrl = apiUrlInput.value.trim();
+
+    // Guard: if the API key looks like a URL, it's probably meant for the URL field
+    if (apiKey && (apiKey.startsWith('http://') || apiKey.startsWith('https://'))) {
+        apiUrlInput.value = apiKey;
+        apiKeyInput.value = '';
+        updateProviderUI();
+        return;
+    }
+
     saveSettings({
-        provider: providerSelect.value,
-        apiKey: apiKeyInput.value.trim(),
+        provider,
+        apiKey: provider === 'ollama' ? '' : apiKey,
         model: modelInput.value.trim(),
-        apiUrl: apiUrlInput.value.trim(),
+        apiUrl,
     });
     settingsModal.classList.remove('open');
 });
