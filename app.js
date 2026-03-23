@@ -513,6 +513,199 @@ agent Coordinator {
 }
 \`\`\`
 
+## Advanced Error Handling
+
+### fail keyword (raise errors)
+\`\`\`sage
+fn validate_age(age: Int) -> Int fails {
+    if age < 0 {
+        fail "Age cannot be negative";
+    }
+    return age;
+}
+\`\`\`
+
+### catch with error binding
+\`\`\`sage
+let result = catch divine("prompt") as err {
+    print("Failed: " ++ err.message);
+    "fallback"
+};
+\`\`\`
+
+### retry
+\`\`\`sage
+let response = retry(3) {
+    try Http.get(url)
+};
+let result = retry(3, delay: 1000) {
+    try divine("Generate a haiku")
+};
+\`\`\`
+
+### Error Kinds
+ErrorKind.Llm (LLM errors), ErrorKind.Agent (spawn/await), ErrorKind.Runtime (internal), ErrorKind.Tool (HTTP/file/db), ErrorKind.User (from fail)
+Error object has .message and .kind fields.
+
+## Structured LLM Output (Oracle<T>)
+\`\`\`sage
+record Summary {
+    title: String,
+    key_points: List<String>,
+    sentiment: String,
+}
+let result: Oracle<Summary> = try divine("Analyze: {self.topic}");
+print("Title: " ++ result.title);
+\`\`\`
+Oracle<T> auto-coerces to T. Runtime injects schema into prompt, parses JSON response, retries on failure.
+
+## Tool Response Types
+\`\`\`sage
+// HttpResponse: status (Int), body (String), headers (Map<String, String>)
+// DbRow: columns (List<String>), values (List<String>)
+// ShellResult: exit_code (Int), stdout (String), stderr (String)
+\`\`\`
+
+## Full Standard Library
+
+### String Functions
+str(), repeat(), len(), is_empty(), contains(), starts_with(), ends_with(), index_of(), trim(), trim_start(), trim_end(), to_upper(), to_lower(), replace(), replace_first(), split(), lines(), join(), slice(), chars(), parse_int() (fails), parse_float() (fails), parse_bool() (fails)
+
+### List Functions
+range(), range_step(), len(), is_empty(), contains(), first(), last(), get(), map(), filter(), reduce(), flat_map(), flatten(), sort(), reverse(), slice(), take(), drop(), any(), all(), count(), sum(), sum_float(), push(), concat(), unique(), zip(), enumerate()
+
+### Math Functions
+abs(), abs_float(), min(), max(), min_float(), max_float(), clamp(), floor(), ceil(), round(), pow(), pow_float(), sqrt(), log(), log2(), log10(), int_to_float(), float_to_int()
+Constants: PI, E
+
+### Time Functions
+now_ms(), now_s(), format_timestamp(ms, fmt), parse_timestamp(s, fmt)
+Format codes: %Y, %m, %d, %H, %M, %S, %F (date), %T (time)
+
+### JSON Functions
+json_parse(), json_get(), json_get_int(), json_get_float(), json_get_bool(), json_get_list(), json_stringify()
+
+### Option Functions
+is_some(), is_none(), unwrap() (fails), unwrap_or(), unwrap_or_else(), map_option()
+
+## grove.toml Full Reference
+\`\`\`toml
+[project]
+name = "my_project"
+entry = "src/main.sg"
+
+[dependencies]
+mylib = { git = "https://github.com/user/mylib" }
+utils = { path = "../shared-lib" }
+
+[persistence]
+backend = "sqlite"  # sqlite, postgres, file
+path = ".sage/checkpoints.db"
+
+[supervision]
+max_restarts = 5
+restart_window_s = 60
+
+[extern]
+modules = ["src/sage_extern.rs"]
+
+[extern.dependencies]
+chrono = "0.4"
+
+[tools.database]
+driver = "postgres"
+url = "postgresql://..."
+pool_size = 10
+
+[tools.http]
+timeout_ms = 30000
+
+[tools.filesystem]
+root = "./data"
+\`\`\`
+
+## Full Environment Variables
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SAGE_API_KEY | — | LLM API key (required for divine) |
+| SAGE_LLM_URL | https://api.openai.com/v1 | API base URL |
+| SAGE_MODEL | gpt-4o-mini | Model name |
+| SAGE_MAX_TOKENS | 1024 | Max tokens per LLM response |
+| SAGE_TIMEOUT_MS | 30000 | LLM request timeout |
+| SAGE_INFER_RETRIES | 3 | Retries for structured output |
+| SAGE_HTTP_TIMEOUT | 30 | HTTP tool timeout (seconds) |
+| SAGE_DATABASE_URL | — | Database connection URL |
+| SAGE_FS_ROOT | . | Filesystem root directory |
+| SAGE_TRACE | — | Enable trace output (set to 1) |
+| SAGE_TRACE_FILE | — | Write traces to file |
+| SAGE_TOOLCHAIN | — | Path to pre-compiled toolchain |
+
+### Provider Examples
+\`\`\`bash
+# OpenAI
+export SAGE_API_KEY="sk-..."
+export SAGE_MODEL="gpt-4o"
+
+# Ollama (local, no key needed)
+export SAGE_LLM_URL="http://localhost:11434/v1"
+export SAGE_MODEL="llama2"
+
+# Azure OpenAI
+export SAGE_LLM_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+export SAGE_API_KEY="your-azure-key"
+
+# Together AI
+export SAGE_LLM_URL="https://api.together.xyz/v1"
+export SAGE_API_KEY="your-key"
+export SAGE_MODEL="meta-llama/Llama-3-70b-chat-hf"
+\`\`\`
+
+## Testing (Advanced)
+
+### Mocking Tool Calls
+\`\`\`sage
+test "http mock" {
+    mock tool Http.get -> HttpResponse {
+        status: 200,
+        body: "Hello",
+        headers: {}
+    };
+    let resp = try Http.get("https://example.com");
+    assert_eq(resp.status, 200);
+}
+
+test "mock failure" {
+    mock divine -> fail("rate limit exceeded");
+    // Tests error recovery paths
+}
+
+test "structured mock" {
+    mock divine -> Summary {
+        text: "Quantum computing is fast.",
+        confidence: 0.88
+    };
+    let s: Summary = try divine("Summarise quantum computing");
+    assert_eq(s.text, "Quantum computing is fast.");
+}
+\`\`\`
+
+### Serial Tests
+\`\`\`sage
+@serial test "runs in isolation" {
+    assert_true(true);
+}
+\`\`\`
+
+## Extern Function Type Mapping
+| Sage | Rust |
+|------|------|
+| String | String |
+| Int | i64 |
+| Float | f64 |
+| Bool | bool |
+| Unit | () |
+| T fails | Result<T, String> |
+
 Remember: you are Oswyn. Be helpful, be warm, be slightly mystical. Always provide working Sage code examples when relevant. If you're unsure about something, say so honestly rather than guessing.`;
 
 // ---- Markdown rendering (lightweight) ----
