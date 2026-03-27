@@ -1096,16 +1096,38 @@ function escHtml(s) {
 document.addEventListener('click', (e) => {
     const btn = e.target.closest('.copy-btn');
     if (!btn) return;
-    const code = btn.closest('.code-block').querySelector('code');
-    navigator.clipboard.writeText(code.textContent).then(() => {
+    e.preventDefault();
+    e.stopPropagation();
+    const codeEl = btn.closest('.code-block')?.querySelector('code');
+    if (!codeEl) return;
+    const text = codeEl.textContent || '';
+
+    const onSuccess = () => {
         btn.textContent = 'Copied!';
         btn.classList.add('copied');
-        setTimeout(() => {
-            btn.textContent = 'Copy';
-            btn.classList.remove('copied');
-        }, 1500);
-    });
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+            // Fallback for clipboard API failure
+            fallbackCopy(text) && onSuccess();
+        });
+    } else {
+        fallbackCopy(text) && onSuccess();
+    }
 });
+
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); document.body.removeChild(ta); return true; }
+    catch { document.body.removeChild(ta); return false; }
+}
 
 // ---- API calls ----
 async function callLLM(userMessages) {
