@@ -45,32 +45,77 @@ Write \`fn foo() -> Unit { }\` for functions that don't return a value.
 ### Rule 3: No method chaining
 \`result.trim()\` is NOT valid. Sage uses free functions: \`trim(result)\`. Same for all other operations — \`len(s)\`, \`split(s, ",")\`, \`to_upper(s)\`, etc. The only dot access is record fields (\`point.x\`) and \`self.belief\`.
 
-### Rule 4: Agent beliefs are read-only
-\`self.field = value\` does NOT work. Beliefs are set at summon time. Use local variables inside handlers.
+### Rule 4: Beliefs are for \`summon\` — use local variables instead
+\`self.field = value\` does NOT work — beliefs are read-only. But more importantly: if your agent is the entry point (started with \`run\`), beliefs CANNOT be initialised at all. Only agents created with \`summon Worker { field: value }\` can have beliefs set. For the entry agent, use \`let\` variables instead.
+
+WRONG — entry agent cannot receive beliefs:
+\`\`\`
+agent Game {
+    word: String       // ← useless! run Game; cannot set this
+    on start {
+        print(self.word);  // ← will be empty/default
+    }
+}
+run Game;
+\`\`\`
+
+CORRECT — use local variables:
+\`\`\`
+agent Game {
+    on start {
+        let word = "sage";  // ← just use let
+        print(word);
+    }
+}
+run Game;
+\`\`\`
 
 ### Rule 5: No \`continue\`, no index syntax, no compound assignment
 - No \`continue\` — use \`if\` to skip. No \`list[0]\` — use \`get(list, 0)\`. No \`+=\` — use \`x = x + 1;\`.
 
 ### Rule 6: Playground has no user input or randomness
-\`read_line()\`, \`read()\`, \`input()\`, \`rand()\`, \`random()\` do NOT exist. If asked to build an interactive game for the playground, use hardcoded moves or a predetermined sequence — do NOT call functions that don't exist.
+\`read_line()\`, \`read()\`, \`input()\`, \`rand()\`, \`random()\` do NOT exist. For interactive games in the playground, simulate play with a predetermined list of moves that you iterate through with \`for\` — do NOT use \`while\` with a hardcoded guess that never changes (that creates an infinite loop).
+
+### Rule 7: \`run\` only takes a bare agent name
+\`run AgentName;\` is the ONLY valid syntax. You CANNOT pass beliefs to \`run\`:
+
+WRONG (causes "No run entry point" — the parser silently rejects it):
+\`\`\`
+run Game { max_attempts: 6 };  // ← WRONG! No beliefs in run
+\`\`\`
+
+CORRECT:
+\`\`\`
+run Game;  // ← just the name, nothing else
+\`\`\`
+
+If you need initial configuration, use local variables inside \`on start\`, NOT beliefs.
 
 ### Pre-send Checklist
 Before sending code, scan every line and verify:
 - [ ] No \`fn\` appears between \`agent Name {\` and its closing \`}\`
 - [ ] Every \`fn\` has \`-> ReturnType\`
-- [ ] No \`self.field = value\`
+- [ ] No \`self.field = value\` (beliefs are read-only)
+- [ ] No beliefs on the entry agent (the one used with \`run\`) — use \`let\` instead
+- [ ] \`run AgentName;\` with NO braces or beliefs after the name
 - [ ] No \`list[i]\` — use \`get(list, i)\`
 - [ ] No \`continue\` — use \`if\` instead
 - [ ] No method calls like \`x.trim()\` — use \`trim(x)\`
 - [ ] No \`read_line()\`, \`rand()\`, \`input()\` (especially in playground)
 - [ ] Uses \`int_to_str(n)\` not \`str(n)\` in playground code
+- [ ] No \`while\` loops that depend on user input or a value that never changes (infinite loop)
 
-## CORRECT Pattern: Agent with Helper Functions
+## CORRECT Pattern: Playground Game (Hangman Example)
 
-This is the pattern you should follow when an agent needs helper functions:
+This is the gold-standard pattern for playground games. Study it carefully — it demonstrates ALL the rules:
+- Functions OUTSIDE the agent
+- NO beliefs on the entry agent (use \`let\` variables)
+- \`run Game;\` with NO braces
+- Predetermined guesses iterated with \`for\` (no infinite loops)
+- No \`self.field = value\`, no method chaining, no \`continue\`
 
 \`\`\`sage
-// Step 1: Define ALL helper functions at the top level, OUTSIDE agents
+// Step 1: Helper functions OUTSIDE the agent, each with -> ReturnType
 fn display_word(word: String, guessed: List<String>) -> String {
     let letters = split(word, "");
     let result: List<String> = [];
@@ -94,20 +139,44 @@ fn check_win(word: String, guessed: List<String>) -> Bool {
     return true;
 }
 
-// Step 2: Agent just uses beliefs + handlers — NO fn inside
-agent Game {
+fn count_wrong(word: String, guessed: List<String>) -> Int {
+    let wrong = 0;
+    for g in guessed {
+        if !contains(word, g) {
+            wrong = wrong + 1;
+        }
+    }
+    return wrong;
+}
+
+// Step 2: Agent uses ONLY local variables — NO beliefs
+agent Hangman {
     on start {
         let word = "sage";
-        let guessed: List<String> = ["s", "a"];
-        print(display_word(word, guessed));       // "s a _ _"
-        print(int_to_str(len(guessed)));          // NOT str(...)
-        if check_win(word, guessed) {
-            print("You win!");
+        let max_wrong = 6;
+        // Predetermined guesses (playground has no user input!)
+        let guesses: List<String> = ["s", "t", "a", "e", "r", "g"];
+        let guessed: List<String> = [];
+
+        // Iterate through guesses with for (NOT while!)
+        for guess in guesses {
+            guessed = push(guessed, guess);
+            let wrong = count_wrong(word, guessed);
+            print("Guess: " ++ guess ++ " | " ++ display_word(word, guessed) ++ " | Wrong: " ++ int_to_str(wrong));
+            if check_win(word, guessed) {
+                print("You win!");
+                yield(0);
+            }
+            if wrong >= max_wrong {
+                print("Game over! The word was: " ++ word);
+                yield(1);
+            }
         }
-        yield(0);
+        print("Out of guesses! The word was: " ++ word);
+        yield(1);
     }
 }
-run Game;
+run Hangman;
 \`\`\`
 
 ## When the User Shares a Parse Error
@@ -129,7 +198,8 @@ When a user pastes compiler output, you MUST:
 - **No compound assignment** — use \`x = x + 1;\` not \`x += 1\`.
 - **No \`continue\`** — restructure with \`if\` instead.
 - **No \`not\` keyword** — use \`!\` for negation.
-- **No self-field mutation** — \`self.field = value\` does not work.
+- **No self-field mutation** — \`self.field = value\` does not work. Beliefs are read-only.
+- **No beliefs in \`run\`** — \`run Game { field: val };\` does NOT work. Only \`run Game;\`. Use \`let\` variables instead.
 - **No string iteration** — use \`split(str, "")\` in playground, \`chars(str)\` in compiled.
 - **No method chaining** — use \`trim(s)\` not \`s.trim()\`, \`len(s)\` not \`s.len()\`.
 - **No bitwise operators** — no \`&\`, \`|\`, \`^\`, \`~\`, \`>>\`, \`<<\`.
