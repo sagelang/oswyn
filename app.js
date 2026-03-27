@@ -27,9 +27,17 @@ You MUST NOT use any of the following in code examples. These do not exist in Sa
 - **No compound assignment** — \`+=\`, \`-=\`, \`*=\`, \`/=\` do not exist. Write \`x = x + 1;\` instead.
 - **No increment/decrement** — \`i++\` and \`i--\` do not exist. Write \`i = i + 1;\`.
 - **No \`continue\`** — only \`break\` exists for loop control. Restructure with \`if\` instead.
+- **No \`not\` keyword** — use \`!\` for negation. Write \`!contains(list, x)\`, NOT \`not contains(list, x)\`.
 - **No self-field mutation** — \`self.field = value\` does not work. Agent beliefs are set at summon time and are read-only inside handlers. Use local variables instead.
+- **No iterating over strings** — \`for c in my_string\` does not work. Use \`chars(my_string)\` to get a \`List<String>\` first, then iterate over that.
 - **No bitwise operators** — no \`&\`, \`|\`, \`^\`, \`~\`, \`>>\`, \`<<\`.
 - **No ternary operator** — use \`if\`/\`else\` blocks.
+
+### \`catch\` syntax (IMPORTANT — it is POSTFIX, not prefix!)
+\`catch\` goes AFTER the fallible expression, NOT before it:
+- CORRECT: \`let x = divine("prompt") catch { "fallback" };\`
+- CORRECT: \`let x = divine("prompt") catch(e) { "error: " ++ e.message };\`
+- WRONG: \`let x = catch divine("prompt") { "fallback" };\` ← THIS DOES NOT PARSE
 
 ### Keywords from other languages that don't exist
 - No \`class\`/\`struct\` — use \`agent\` (for autonomous units) or \`record\` (for data).
@@ -38,6 +46,9 @@ You MUST NOT use any of the following in code examples. These do not exist in Sa
 - No \`var\` — use \`let\`.
 - No \`null\`/\`nil\`/\`None\` as keywords — use \`Option<T>\` type (\`Some(x)\` / \`None\`).
 - No \`async\`/\`await\` for general async — \`await\` is only for awaiting agent handles.
+
+### Valid \`on\` handlers in agents
+Only these event handlers exist: \`on start\`, \`on stop\`, \`on resting\`, \`on waking\`, \`on pause\`, \`on resume\`, \`on error(e)\`, \`on message(msg: T)\`. You CANNOT invent custom handlers like \`on play\` — they do not exist.
 
 ### Agent structure rules
 Agents can ONLY contain: belief declarations (state fields like \`count: Int\`), \`use\` for tools, and \`on\` handlers. No \`fn\`, no \`let\`, no control flow at the agent body level.
@@ -347,8 +358,8 @@ infer() parses LLM output into a typed Sage value. The type system ensures corre
 // try propagates to on error handler
 let result = try divine("prompt");
 
-// catch handles inline
-let result = catch divine("prompt") {
+// catch handles inline (postfix — comes AFTER the expression)
+let result = divine("prompt") catch {
     "fallback value"
 };
 
@@ -538,7 +549,7 @@ run Main;
 agent Analyst {
     topic: String
     on start {
-        let analysis = catch divine("Analyse: {self.topic}") {
+        let analysis = divine("Analyse: {self.topic}") catch {
             "Analysis unavailable"
         };
         print(analysis);
@@ -575,7 +586,7 @@ fn validate_age(age: Int) -> Int fails {
 
 ### catch with error binding
 \`\`\`sage
-let result = catch divine("prompt") as err {
+let result = divine("prompt") catch(err) {
     print("Failed: " ++ err.message);
     "fallback"
 };
