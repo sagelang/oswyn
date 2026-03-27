@@ -761,9 +761,10 @@ function renderMarkdown(text) {
     // Escape HTML
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Code blocks
+    // Code blocks — wrapped in a container with a copy button
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-        return `<pre><code>${code.trim()}</code></pre>`;
+        const trimmed = code.trim();
+        return `<div class="code-block"><button class="copy-btn" onclick="copyCode(this)" title="Copy code">Copy</button><pre><code>${trimmed}</code></pre></div>`;
     });
 
     // Inline code
@@ -793,6 +794,8 @@ function renderMarkdown(text) {
     html = html.replace(/<p>\s*<\/p>/g, '');
     html = html.replace(/<p>\s*(<pre>)/g, '$1');
     html = html.replace(/(<\/pre>)\s*<\/p>/g, '$1');
+    html = html.replace(/<p>\s*(<div class="code-block">)/g, '$1');
+    html = html.replace(/(<\/div>)\s*<\/p>/g, '$1');
     html = html.replace(/<p>\s*(<ul>)/g, '$1');
     html = html.replace(/(<\/ul>)\s*<\/p>/g, '$1');
     html = html.replace(/<p>\s*(<h3>)/g, '$1');
@@ -929,6 +932,18 @@ function scrollToBottom() {
 
 function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function copyCode(btn) {
+    const code = btn.closest('.code-block').querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+        }, 1500);
+    });
 }
 
 // ---- API calls ----
