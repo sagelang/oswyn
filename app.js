@@ -29,17 +29,23 @@ You MUST NOT use any of the following in code examples. These do not exist in Sa
 - No \`Array\` — use \`List<T>\` instead.
 - No \`Set\` — use \`List<T>\` with \`unique()\`.
 
+### Function syntax rules
+- **ALL functions MUST have a return type** — \`fn foo() { }\` does NOT parse. You must write \`fn foo() -> Unit { }\`. There is no implicit void/unit return. EVERY function needs \`-> Type\`.
+- **\`fn\` with no return type causes**: \`found "{" but expected "->"\`. This is the most common error.
+
 ### Syntax that doesn't exist
 - **No index syntax** — \`list[0]\` and \`str[i]\` do NOT work. Use \`get(list, 0)\` for lists.
 - **No \`fn\` inside agents** — functions must be defined at the top level, outside agents. Agents only contain beliefs (state fields) and \`on\` handlers.
 - **No compound assignment** — \`+=\`, \`-=\`, \`*=\`, \`/=\` do not exist. Write \`x = x + 1;\` instead.
 - **No increment/decrement** — \`i++\` and \`i--\` do not exist. Write \`i = i + 1;\`.
-- **No \`continue\`** — only \`break\` exists for loop control. Restructure with \`if\` instead.
+- **No \`continue\`** — only \`break\` exists for loop control. Restructure with \`if\` instead of skipping iterations.
 - **No \`not\` keyword** — use \`!\` for negation. Write \`!contains(list, x)\`, NOT \`not contains(list, x)\`.
 - **No self-field mutation** — \`self.field = value\` does not work. Agent beliefs are set at summon time and are read-only inside handlers. Use local variables instead.
-- **No iterating over strings** — \`for c in my_string\` does not work. Use \`chars(my_string)\` to get a \`List<String>\` first, then iterate over that.
+- **No iterating over strings directly** — \`for c in my_string\` does not work. In compiled Sage, use \`chars(str)\` to split into a list of single-character strings. In the playground, use \`split(str, "")\` or work with \`slice(str, i, i+1)\`.
 - **No bitwise operators** — no \`&\`, \`|\`, \`^\`, \`~\`, \`>>\`, \`<<\`.
 - **No ternary operator** — use \`if\`/\`else\` blocks.
+- **No \`read()\` or \`input()\`** — there is no console input function. The playground cannot prompt the user for input.
+- **No \`rand()\` or \`random()\`** — there is no built-in random number generator.
 
 ### \`catch\` syntax (IMPORTANT — it is POSTFIX, not prefix!)
 \`catch\` goes AFTER the fallible expression, NOT before it:
@@ -137,12 +143,18 @@ run Main;
 \`\`\`
 
 ### Functions
+ALL functions MUST declare a return type with \`->\`. There is NO implicit void.
 \`\`\`sage
 fn factorial(n: Int) -> Int {
     if n <= 1 {
         return 1;
     }
     return n * factorial(n - 1);
+}
+
+// Functions that don't return a value use -> Unit
+fn greet(name: String) -> Unit {
+    print("Hello, " ++ name);
 }
 \`\`\`
 
@@ -526,8 +538,71 @@ Produces WASM bundle in pkg/. Uses sage-runtime-web for browser APIs.
 | sage trace <sub> <file> | Analyse trace files |
 | sage sense | Start LSP server |
 
-## Built-in Functions
-print(msg), str(value), len(list), push(list, item), divine(prompt), infer(prompt), receive(), send(handle, msg), map_get(map, key), map_set(map, key, value), map_has(map, key), map_delete(map, key), map_keys(map), map_values(map), trace(msg), int_to_str(n), float_to_str(f), str_to_int(s), str_to_float(s), to_upper(s), to_lower(s), trim(s), split(s, delim), join(list, delim), contains(s, sub), abs(n), min(a, b), max(a, b), range(start, end), chr(n), type_of(value)
+## Standard Library Reference
+
+### String Functions
+str(value) -> String — convert any value to string
+len(s) -> Int — length in characters (Unicode-aware)
+is_empty(s) -> Bool — check if empty
+contains(s, sub) -> Bool — check substring
+starts_with(s, prefix) -> Bool — check prefix
+ends_with(s, suffix) -> Bool — check suffix
+index_of(s, sub) -> Option<Int> — find substring index
+trim(s) -> String — strip whitespace both ends
+trim_start(s), trim_end(s) -> String — strip one end
+to_upper(s), to_lower(s) -> String — case conversion
+replace(s, from, to) -> String — replace all occurrences
+replace_first(s, from, to) -> String — replace first only
+split(s, delim) -> List<String> — split by delimiter (split(s, "") splits into chars)
+lines(s) -> List<String> — split into lines
+join(parts, sep) -> String — join with separator
+slice(s, start, end) -> String — substring by char indices
+chars(s) -> List<String> — split into individual characters
+chr(n) -> String — codepoint to character
+repeat(s, n) -> String — repeat n times
+parse_int(s) -> Int fails, parse_float(s) -> Float fails, parse_bool(s) -> Bool fails
+json_escape(s) -> String, str_truncate(s, max_len) -> String
+
+### List Functions
+len(list) -> Int, is_empty(list) -> Bool, contains(list, value) -> Bool
+get(list, index) -> Option<T> — access by index (NO bracket syntax!)
+first(list) -> Option<T>, last(list) -> Option<T>
+push(list, value) -> List<T> — append (returns new list)
+concat(a, b) -> List<T> — concatenate lists
+range(start, end) -> List<Int> — integers start..end exclusive
+range_step(start, end, step) -> List<Int>
+map(list, f) -> List<U>, filter(list, f) -> List<T>, reduce(list, init, f) -> U
+flat_map(list, f), flatten(list), zip(a, b), enumerate(list)
+sort(list), reverse(list), unique(list), slice(list, start, end)
+take(list, n), drop(list, n), any(list, f), all(list, f), count(list, f)
+sum(list) -> Int, sum_float(list) -> Float
+
+### Math Functions
+abs(n), min(a, b), max(a, b), clamp(value, low, high)
+floor(n), ceil(n), round(n) — float to int
+pow(base, exp) -> Int, pow_float(base, exp), sqrt(n), log(n), log2(n), log10(n)
+int_to_float(n), float_to_int(n), int_to_str(n), float_to_str(f), str_to_int(s), str_to_float(s)
+
+### Map Functions
+map_get(map, key) -> Option<V>, map_set(map, key, value), map_has(map, key) -> Bool
+map_delete(map, key), map_keys(map) -> List<K>, map_values(map) -> List<V>
+
+### Option Functions
+is_some(opt), is_none(opt), unwrap(opt) fails, unwrap_or(opt, default), map_option(opt, f)
+
+### I/O & Time
+print(msg), println(msg), trace(msg)
+read_line() -> String fails, read_all() -> String fails (compiled only, not playground)
+now_ms() -> Int, now_s() -> Int, format_timestamp(ms, fmt) -> String
+env(key) -> Option<String>, env_or(key, default) -> String
+
+### JSON Functions
+json_parse(s) fails, json_get(json, key), json_get_int(json, key), json_get_float(json, key), json_get_bool(json, key), json_get_list(json, key), json_stringify(value)
+
+## Playground Limitations (WASM)
+The Sage Playground supports a SUBSET of the stdlib. Available: print, println, trace, len, contains, split, trim, to_upper, to_lower, push, get, slice, join, abs, min, max, range, chr, int_to_str, float_to_str, str_to_int, str_to_float, json_escape, str_truncate.
+NOT available in playground: str(), chars(), lines(), divine(), infer(), receive(), send(), map_get/set/has/delete/keys/values, read_line(), rand(), sort(), filter(), map(), reduce(), reverse(), unique(), zip(), enumerate(), any(), all(), now_ms(), time functions, JSON functions.
+When writing playground code: use int_to_str(n) instead of str(n), use split(s, "") instead of chars(s).
 
 ## Editor Support
 - Zed: Install "Sage" extension (tree-sitter highlighting + LSP diagnostics)
