@@ -764,7 +764,7 @@ function renderMarkdown(text) {
     // Code blocks — wrapped in a container with a copy button
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
         const trimmed = code.trim();
-        return `<div class="code-block"><button class="copy-btn" onclick="copyCode(this)" title="Copy code">Copy</button><pre><code>${trimmed}</code></pre></div>`;
+        return `<div class="code-block"><button class="copy-btn" title="Copy code">Copy</button><pre><code>${trimmed}</code></pre></div>`;
     });
 
     // Inline code
@@ -934,7 +934,10 @@ function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function copyCode(btn) {
+// ---- Copy code button (delegated) ----
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
     const code = btn.closest('.code-block').querySelector('code');
     navigator.clipboard.writeText(code.textContent).then(() => {
         btn.textContent = 'Copied!';
@@ -944,7 +947,7 @@ function copyCode(btn) {
             btn.classList.remove('copied');
         }, 1500);
     });
-}
+});
 
 // ---- API calls ----
 async function callLLM(userMessages) {
